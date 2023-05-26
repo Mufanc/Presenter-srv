@@ -8,7 +8,7 @@
             <el-button
                 v-if="lastUsedDirectory"
                 :disabled="hasError"
-                @click="registerOnly"
+                @click="registerLast"
                 size="large"
                 >使用上一次的文件夹（{{ lastUsedDirectory.name }}）</el-button
             >
@@ -111,8 +111,18 @@ async function pickAndRegister() {
 
 const lastUsedDirectory = computedAsync(async () => await FileSystemHelper.getLastDirectory(), null)
 
-function registerOnly() {
-    postMessage('REGISTER', { handle: lastUsedDirectory.value })
+async function registerLast() {
+    const handle = lastUsedDirectory.value!
+
+    while (await handle.queryPermission() == 'prompt') {
+        await handle.requestPermission({ mode: 'read' })
+    }
+
+    if (await handle.queryPermission() == 'granted') {
+        postMessage('REGISTER', { handle })
+    } else {
+        console.error('Permission denied.')
+    }
 }
 
 const hasError = ref(false)
