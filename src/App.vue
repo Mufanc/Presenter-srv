@@ -167,16 +167,15 @@ onMounted(() => {
                 document.write(params.content)
                 document.close()
 
-                // document.addEventListener('keydown', event => {
-                //     // prevent F5 and Ctrl + R
-                //     if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
-                //         event.preventDefault()
-                //     }
-                // })
+                window.addEventListener('beforeunload', () => {
+                    console.log('unload')
+                    postMessage('UNREGISTER', { })
+                })
 
                 break
+
             default:
-                console.warn(`Unexpected message: ${event}`)
+                console.warn(`Unexpected message: ${method}`)
                 break
         }
     }

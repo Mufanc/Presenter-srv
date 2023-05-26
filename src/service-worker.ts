@@ -34,9 +34,10 @@ async function getFile(dir: FileSystemDirectoryHandle, path: string): Promise<Fi
 
 swContext.addEventListener('message', async event => {
     const { method, params } = event.data
+    const client = event.source as WindowClient
+
     switch (method) {
         case 'REGISTER':
-            const client = event.source as Client
             const handle = params.handle as FileSystemDirectoryHandle
 
             const fp = await getFile(handle, 'index.html')
@@ -53,8 +54,15 @@ swContext.addEventListener('message', async event => {
             }
 
             break
+
+        case 'UNREGISTER':
+            if (clientMap.delete(client.id)) {
+                console.log(`Client disconnected: ${client.id}`)
+            }
+            break
+
         default:
-            console.warn(`Unexpected message: ${event}`)
+            console.warn(`Unexpected message: ${method}`)
             break
     }
 })
