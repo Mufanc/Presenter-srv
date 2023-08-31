@@ -23,11 +23,6 @@
                     的部署工作。你只需要点击上方按钮选择 Presenter 打包时生成的 web-app
                     文件夹，即可进入演示模式。
                 </p>
-                <p>
-                    &emsp;&emsp;如果你第一次用本工具，可能会出现「Service Worker
-                    不可用」的错误提示，这是正常现象，一般刷新一次即可恢复，如果依然报错，可尝试清除网站数据后再刷新，更多问题请移步
-                    GitHub issues
-                </p>
             </div>
         </details>
     </el-card>
@@ -48,7 +43,7 @@ function postMessage(method: string, params: any) {
 
 class FileSystemHelper {
     static async #connect(): Promise<IDBDatabase> {
-        const connection = await window.indexedDB.open('FileHandleDB', 1)
+        const connection = window.indexedDB.open('FileHandleDB', 1)
 
         connection.onupgradeneeded = () => {
             const database = connection.result
@@ -140,19 +135,23 @@ function checkEnv() {
 
     // check Service Worker
     ;(async () => {
-        const message = 'Service Worker 不可用'
-
         try {
             const resp = await fetch('https://service.worker/check')
-
             if (resp.status === 200 && resp.statusText == 'ACK') {
                 return
             }
+        } catch (err) { }
 
-            logE(message)
-        } catch (err) {
-            logE(message)
+        const key = "no-auto-refresh"
+        const noRefresh = Boolean(localStorage.getItem(key))
+
+        if (noRefresh) {
+            logE('Service Worker 不可用')
+            return
         }
+
+        localStorage.setItem(key, "1")
+        window.location.reload()
     })()
 }
 
