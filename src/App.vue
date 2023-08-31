@@ -168,14 +168,16 @@ function checkEnv() {
 
     // check Service Worker
     ;(async () => {
+        const key = 'no-auto-refresh'
+
         try {
             const resp = await fetch('https://service.worker/check')
             if (resp.status === 200 && resp.statusText === 'ACK') {
+                localStorage.removeItem(key)
                 return
             }
         } catch (err) {}
 
-        const key = 'no-auto-refresh'
         const refresh = !Boolean(localStorage.getItem(key))
 
         if (refresh) {
@@ -184,7 +186,6 @@ function checkEnv() {
             return
         }
 
-        localStorage.removeItem(key)
         logE('Service Worker 不可用')
     })()
 }
@@ -224,7 +225,6 @@ onMounted(() => {
 
 .title {
     text-align: center;
-    font-family: 'Noto Serif SC', system-ui;
 }
 
 .box {

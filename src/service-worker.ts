@@ -31,12 +31,12 @@ swContext.addEventListener('message', async event => {
 
         case 'UNREGISTER':
             if (clients.delete(client.id)) {
-                console.log(`Client disconnected: ${client.id}`)
+                console.log(`client disconnected: ${client.id}`)
             }
             break
 
         default:
-            console.warn(`Unexpected message: ${method}`)
+            console.warn(`unexpected message: ${method}`)
             break
     }
 })
