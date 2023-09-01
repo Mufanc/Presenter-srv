@@ -72,22 +72,17 @@ class PersistenceHelper {
 
     static async save(handle: FileSystemHandle) {
         const idb = await this.connect()
-        const store = idb
+        const request = idb
             .transaction(['STORE'], 'readwrite')
             .objectStore('STORE')
+            .put(handle, 'LAST-DIR')
 
-        function onError(ev: Event) {
+        request.onerror = (ev) => {
             console.error('idb error: ', ev)
         }
 
-        const req1 = store.delete('LAST-DIR')
-        req1.onerror = onError
-        req1.onsuccess = () => {
-            const req2 = store.add(handle, 'LAST-DIR')
-            req2.onerror = onError
-            req2.onsuccess = () => {
-                console.log('saved.')
-            }
+        request.onsuccess = () => {
+            console.log('saved.')
         }
     }
 
