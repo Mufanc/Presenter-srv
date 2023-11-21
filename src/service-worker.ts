@@ -1,42 +1,44 @@
 import Mime from 'mime'
+import { EventTypes, WindowEvent } from './events'
 import { createDirLike, DirLike } from './fs'
 
 const swContext: ServiceWorkerGlobalScope & typeof self = self as any
 const clients = new Map<string, DirLike>()
 
 swContext.addEventListener('message', async event => {
-    const { method, params } = event.data
+    const ev = event.data as WindowEvent
     const client = event.source as WindowClient
 
-    switch (method) {
-        case 'REGISTER':
-            const fs = createDirLike(params.handle as FileSystemHandle)
+    function postMessage(event: WindowEvent) {
+        client.postMessage(event)
+    }
+
+    switch (ev.type) {
+        case EventTypes.REGISTER:
+            const fs = createDirLike(ev.handle as FileSystemHandle)
             console.log('register:', fs)
             if (!fs) return
 
-            const fp = await fs.open('index.html')
-            if (fp !== null) {
-                const content = await fp.string()
+            try {
+                const fp = await fs.open('index.html')
+                if (fp !== null) {
+                    const content = await fp.string()
 
-                clients.set(client.id, fs)
-                console.log(`new client: ${client.id}`)
+                    clients.set(client.id, fs)
+                    console.log(`new client: ${client.id}`)
 
-                client.postMessage({
-                    method: 'LOAD',
-                    params: { content },
-                })
+                    postMessage({ type: EventTypes.LOAD, content })
+                }
+            } catch (err) {
+                postMessage({ type: EventTypes.LOAD, error: err })
             }
 
             break
 
-        case 'UNREGISTER':
+        case EventTypes.UNREGISTER:
             if (clients.delete(client.id)) {
                 console.log(`client disconnected: ${client.id}`)
             }
-            break
-
-        default:
-            console.warn(`unexpected message: ${method}`)
             break
     }
 })

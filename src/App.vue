@@ -39,17 +39,15 @@
 <script setup lang="ts">
 import { computedAsync } from '@vueuse/core'
 import { ElMessage } from 'element-plus'
-import { onMounted, ref, computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import 'element-plus/theme-chalk/el-message.css'
+import { EventTypes, WindowEvent } from '@/events'
 
 const box = ref<HTMLElement>()
 const dragover = ref(0)
 
-function postMessage(method: string, params: any) {
-    navigator.serviceWorker?.controller?.postMessage({
-        method,
-        params,
-    })
+function postMessage(event: WindowEvent) {
+    navigator.serviceWorker?.controller?.postMessage(event)
 }
 
 class PersistenceHelper {
@@ -77,7 +75,7 @@ class PersistenceHelper {
             .objectStore('STORE')
             .put(handle, 'LAST-DIR')
 
-        request.onerror = (ev) => {
+        request.onerror = ev => {
             console.error('idb error: ', ev)
         }
 
@@ -116,7 +114,6 @@ const historyHint = computed(() => {
 })
 
 async function pickFile() {
-    // Todo: support zip file
     try {
         const handle = await window.showDirectoryPicker()
         console.log('pick:', handle)
@@ -151,7 +148,7 @@ async function swRegisterHandle(handle: FileSystemHandle) {
 
     if ((await handle.queryPermission()) === 'granted') {
         await PersistenceHelper.save(handle)
-        postMessage('REGISTER', { handle })
+        postMessage({ type: EventTypes.REGISTER, handle })
     } else {
         console.error('permission denied.')
     }
@@ -198,22 +195,20 @@ onMounted(() => {
     checkEnv()
 
     navigator.serviceWorker.onmessage = event => {
-        let { method, params } = event.data
-        switch (method) {
-            case 'LOAD':
-                document.open()
-                document.write(params.content)
-                document.close()
+        let ev = event.data as WindowEvent
+        switch (ev.type) {
+            case EventTypes.LOAD:
+                if (!ev.error) {
+                    document.open()
+                    document.write(ev.content!)
+                    document.close()
 
-                window.addEventListener('beforeunload', () => {
-                    console.log('beforeunload')
-                    postMessage('UNREGISTER', {})
-                })
+                    window.addEventListener('beforeunload', () => {
+                        console.log('beforeunload')
+                        postMessage({ type: EventTypes.UNREGISTER })
+                    })
+                }
 
-                break
-
-            default:
-                console.warn(`unexpected message: ${method}`)
                 break
         }
     }
