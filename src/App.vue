@@ -194,6 +194,14 @@ function checkEnv() {
 onMounted(() => {
     checkEnv()
 
+    navigator.serviceWorker.oncontrollerchange = () => {
+        ElMessage({
+            type: 'success',
+            message: 'Service Worker 已更新',
+            duration: 5000
+        })
+    }
+
     navigator.serviceWorker.onmessage = event => {
         let ev = event.data as WindowEvent
         switch (ev.type) {

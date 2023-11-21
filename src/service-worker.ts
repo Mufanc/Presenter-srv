@@ -5,6 +5,11 @@ import { createDirLike, DirLike } from './fs'
 const swContext: ServiceWorkerGlobalScope & typeof self = self as any
 const clients = new Map<string, DirLike>()
 
+swContext.addEventListener('install', async () => {
+    await swContext.skipWaiting()
+    console.log('installed!')
+})
+
 swContext.addEventListener('message', async event => {
     const ev = event.data as WindowEvent
     const client = event.source as WindowClient
