@@ -9,9 +9,11 @@ export default function App() {
     const [history, setHistory] = useState<FileSystemHandle | null>(null)
     const [dragging, setDragging] = useState(false)
     const [opening, setOpening] = useState(false)
+    const [pickerOpen, setPickerOpen] = useState(false)
     const [error, setError] = useState('')
     const [unavailable, setUnavailable] = useState(false)
     const dragDepth = useRef(0)
+    const archiveButton = useRef<HTMLButtonElement>(null)
 
     useEffect(() => {
         getHandle(lastHandleKey)
@@ -65,11 +67,38 @@ export default function App() {
     }
 
     async function pickDirectory() {
+        setPickerOpen(false)
         try {
             await open(await window.showDirectoryPicker({ mode: 'read' }))
         } catch (error) {
             if (!abortError(error)) setError(error instanceof Error ? error.message : String(error))
         }
+    }
+
+    async function pickArchive() {
+        setPickerOpen(false)
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                multiple: false,
+                types: [
+                    {
+                        description: 'ZIP / TAR 压缩包',
+                        accept: {
+                            'application/zip': ['.zip'],
+                            'application/x-tar': ['.tar'],
+                        },
+                    },
+                ],
+            })
+            if (handle) await open(handle)
+        } catch (error) {
+            if (!abortError(error)) setError(error instanceof Error ? error.message : String(error))
+        }
+    }
+
+    function revealPicker() {
+        setPickerOpen(true)
+        requestAnimationFrame(() => archiveButton.current?.focus())
     }
 
     function enterDropZone(event: DragEvent) {
@@ -111,6 +140,22 @@ export default function App() {
                     <span />
                 </div>
 
+                {history && (
+                    <div className="history-control">
+                        <button
+                            className="history-button"
+                            disabled={opening || unavailable}
+                            aria-label={historyLabel}
+                            onClick={() => open(history)}
+                        >
+                            <span>{history.name}</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+
                 <p className="eyebrow">LOCAL SLIDE RUNTIME</p>
                 <h1>
                     Presenter<span>/srv</span>
@@ -118,22 +163,38 @@ export default function App() {
                 <p className="lede">把构建结果交给浏览器，直接开始演示。</p>
 
                 <div className="actions">
-                    <button
-                        className="primary"
-                        disabled={opening || unavailable}
-                        onClick={pickDirectory}
+                    <div
+                        className={`picker-stack${pickerOpen ? ' is-open' : ''}`}
+                        onBlur={event => {
+                            if (!event.currentTarget.contains(event.relatedTarget))
+                                setPickerOpen(false)
+                        }}
                     >
-                        {opening ? '正在打开…' : '选择文件夹'}
-                    </button>
-                    {history && (
                         <button
-                            className="secondary"
+                            className="primary picker-cover"
                             disabled={opening || unavailable}
-                            onClick={() => open(history)}
+                            aria-expanded={pickerOpen}
+                            aria-haspopup="menu"
+                            onClick={revealPicker}
                         >
-                            {historyLabel}
+                            {opening ? '正在打开…' : '打开演示'}
                         </button>
-                    )}
+                        <button
+                            ref={archiveButton}
+                            className="primary picker-option picker-archive"
+                            disabled={opening || unavailable}
+                            onClick={pickArchive}
+                        >
+                            ZIP / TAR
+                        </button>
+                        <button
+                            className="secondary picker-option picker-directory"
+                            disabled={opening || unavailable}
+                            onClick={pickDirectory}
+                        >
+                            文件夹
+                        </button>
+                    </div>
                 </div>
 
                 {error && (
@@ -143,7 +204,7 @@ export default function App() {
                 )}
 
                 <div className="drop-hint">
-                    <span>或拖入 web-app 文件夹 / ZIP</span>
+                    <span>或拖入 web-app 文件夹 / ZIP / TAR</span>
                     <span className="line" />
                 </div>
 

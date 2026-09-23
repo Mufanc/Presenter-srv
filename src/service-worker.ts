@@ -13,7 +13,7 @@ async function getClient(clientId: string) {
     if (cached) return cached
 
     const handle = await getHandle(clientHandleKey(clientId))
-    const fs = handle && createDirLike(handle)
+    const fs = handle && (await createDirLike(handle))
     if (!handle || !fs) return null
 
     const client = { fs, handle }
@@ -60,10 +60,9 @@ swContext.addEventListener('message', async event => {
 
     if (ev.type !== 'REGISTER') return
 
-    const fs = createDirLike(ev.handle)
-    if (!fs) return
-
     try {
+        const fs = await createDirLike(ev.handle)
+        if (!fs) throw new Error('只支持文件夹、ZIP 或 TAR 文件')
         if (!(await fs.open('index.html'))) throw new Error('所选内容中没有 index.html')
 
         await setHandle(clientHandleKey(client.id), ev.handle)
@@ -101,14 +100,14 @@ swContext.addEventListener('fetch', event => {
             }
 
             const path = requestPath(event.request.url, event.request.mode === 'navigate')
-            let fp: Awaited<ReturnType<DirLike['open']>>
+            let contents: Awaited<ReturnType<DirLike['open']>>
 
             try {
                 if ((await client.handle.queryPermission()) !== 'granted') {
                     throw new DOMException('File access permission expired', 'NotAllowedError')
                 }
 
-                fp = await client.fs.open(path)
+                contents = await client.fs.open(path)
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'NotAllowedError') {
                     await forgetClient(previousClientId)
@@ -121,7 +120,7 @@ swContext.addEventListener('fetch', event => {
                 throw err
             }
 
-            if (fp === null) {
+            if (contents === null) {
                 return new Response(null, { status: 404, statusText: 'Not Found' })
             }
 
@@ -132,12 +131,12 @@ swContext.addEventListener('fetch', event => {
                 clients.set(event.resultingClientId, client)
             }
 
-            return new Response(await fp.arrayBuffer(), {
+            return new Response(contents, {
                 status: 200,
                 statusText: 'OK',
                 headers: {
                     'Cache-Control': 'no-store',
-                    'Content-Type': Mime.getType(await fp.name()) || 'application/octet-stream',
+                    'Content-Type': Mime.getType(path) || 'application/octet-stream',
                 },
             })
         })(),
