@@ -1,18 +1,11 @@
-interface RegisterEvent {
+export interface RegisterEvent {
     type: 'REGISTER'
     handle: FileSystemHandle
 }
 
-interface RegisteredEvent {
+export interface RegisteredEvent {
     type: 'REGISTERED'
-    error?: any
+    error?: string
 }
 
 export type WindowEvent = RegisterEvent | RegisteredEvent
-
-export type EventType = WindowEvent['type']
-
-export const EventTypes: { [K in EventType]: `${K}` } = {
-    REGISTER: 'REGISTER',
-    REGISTERED: 'REGISTERED',
-}

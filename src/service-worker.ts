@@ -1,13 +1,9 @@
 import Mime from 'mime'
-import { EventTypes, WindowEvent } from './events'
-import { createDirLike, DirLike } from './fs'
-import {
-    clientHandleKey,
-    deleteHandle,
-    getHandle,
-    getHandleKeys,
-    setHandle,
-} from './persistence'
+import type { WindowEvent } from './events'
+import { createDirLike } from './fs'
+import type { DirLike } from './fs'
+import { clientHandleKey, deleteHandle, getHandle, getHandleKeys, setHandle } from './persistence'
+import { isResetPath, requestPath } from './request-path'
 
 const swContext: ServiceWorkerGlobalScope & typeof self = self as any
 const clients = new Map<string, { fs: DirLike; handle: FileSystemHandle }>()
@@ -25,6 +21,11 @@ async function getClient(clientId: string) {
     return client
 }
 
+async function forgetClient(clientId: string) {
+    clients.delete(clientId)
+    await deleteHandle(clientHandleKey(clientId))
+}
+
 swContext.addEventListener('install', async () => {
     await swContext.skipWaiting()
     console.log('installed!')
@@ -36,16 +37,16 @@ swContext.addEventListener('activate', event => {
             await swContext.clients.claim()
 
             const activeClients = new Set(
-                (await swContext.clients.matchAll()).map(client => client.id)
+                (await swContext.clients.matchAll()).map(client => client.id),
             )
             const keys = await getHandleKeys()
 
             await Promise.all(
                 keys
                     .filter(key => key.startsWith('CLIENT:') && !activeClients.has(key.slice(7)))
-                    .map(deleteHandle)
+                    .map(deleteHandle),
             )
-        })()
+        })(),
     )
 })
 
@@ -57,26 +58,22 @@ swContext.addEventListener('message', async event => {
         client.postMessage(event)
     }
 
-    switch (ev.type) {
-        case EventTypes.REGISTER:
-            const fs = createDirLike(ev.handle as FileSystemHandle)
-            console.log('register:', fs)
-            if (!fs) return
+    if (ev.type !== 'REGISTER') return
 
-            try {
-                const fp = await fs.open('index.html')
-                if (fp !== null) {
-                    await setHandle(clientHandleKey(client.id), ev.handle)
-                    clients.set(client.id, { fs, handle: ev.handle })
-                    console.log(`new client: ${client.id}`)
+    const fs = createDirLike(ev.handle)
+    if (!fs) return
 
-                    postMessage({ type: EventTypes.REGISTERED })
-                }
-            } catch (err) {
-                postMessage({ type: EventTypes.REGISTERED, error: err })
-            }
+    try {
+        if (!(await fs.open('index.html'))) throw new Error('所选内容中没有 index.html')
 
-            break
+        await setHandle(clientHandleKey(client.id), ev.handle)
+        clients.set(client.id, { fs, handle: ev.handle })
+        postMessage({ type: 'REGISTERED' })
+    } catch (error) {
+        postMessage({
+            type: 'REGISTERED',
+            error: error instanceof Error ? error.message : String(error),
+        })
     }
 })
 
@@ -91,15 +88,19 @@ swContext.addEventListener('fetch', event => {
 
             const { replacesClientId = '' } = event as FetchEvent & { replacesClientId?: string }
             const previousClientId = replacesClientId || event.clientId
+
+            if (event.request.mode === 'navigate' && isResetPath(event.request.url)) {
+                if (previousClientId) await forgetClient(previousClientId)
+                return Response.redirect(new URL('/', uri), 302)
+            }
+
             const client = await getClient(previousClientId)
 
             if (!client) {
                 return await fetch(event.request)
             }
 
-            const path = event.request.mode === 'navigate'
-                ? 'index.html'
-                : uri.pathname.replace(/^\//, '')
+            const path = requestPath(event.request.url, event.request.mode === 'navigate')
             let fp: Awaited<ReturnType<DirLike['open']>>
 
             try {
@@ -110,8 +111,7 @@ swContext.addEventListener('fetch', event => {
                 fp = await client.fs.open(path)
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'NotAllowedError') {
-                    clients.delete(previousClientId)
-                    await deleteHandle(clientHandleKey(previousClientId))
+                    await forgetClient(previousClientId)
 
                     return event.request.mode === 'navigate'
                         ? fetch('/')
@@ -140,7 +140,7 @@ swContext.addEventListener('fetch', event => {
                     'Content-Type': Mime.getType(await fp.name()) || 'application/octet-stream',
                 },
             })
-        })()
+        })(),
     )
 })
 

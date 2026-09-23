@@ -3,19 +3,19 @@
         "target": "ESNext",
         "useDefineForClassFields": true,
         "module": "ESNext",
-        "moduleResolution": "Node",
+        "moduleResolution": "Bundler",
         "strict": true,
-        "jsx": "preserve",
+        "jsx": "react-jsx",
         "resolveJsonModule": true,
+        "allowImportingTsExtensions": true,
         "isolatedModules": true,
-        "esModuleInterop": true,
         "lib": ["ESNext", "DOM", "WebWorker"],
         "skipLibCheck": true,
         "noEmit": true,
+        "baseUrl": ".",
         "paths": {
             "@/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
-    "references": [{ "path": "./tsconfig.node.json" }]
+    "include": ["src", "vite.config.ts"]
 }
