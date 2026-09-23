@@ -20,6 +20,7 @@ export default defineConfig({
             manifest: false,
             injectManifest: {
                 injectionPoint: null,
+                rollupFormat: 'iife',
             },
         }),
         AutoImport({

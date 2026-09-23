@@ -128,7 +128,7 @@ async function pickFile() {
 }
 
 async function useLast() {
-    const handle: FileSystemHandle | null = history.value
+    const handle = history.value
     if (!handle) return
     await swRegisterHandle(handle)
 }
