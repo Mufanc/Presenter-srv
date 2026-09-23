@@ -42,6 +42,7 @@ import { ElMessage } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import 'element-plus/theme-chalk/el-message.css'
 import { EventTypes, WindowEvent } from '@/events'
+import { getHandle, lastHandleKey, setHandle } from '@/persistence'
 
 const box = ref<HTMLElement>()
 const dragover = ref(0)
@@ -50,60 +51,8 @@ function postMessage(event: WindowEvent) {
     navigator.serviceWorker?.controller?.postMessage(event)
 }
 
-class PersistenceHelper {
-    private static async connect(): Promise<IDBDatabase> {
-        const connection = window.indexedDB.open('IndexedDB', 1)
-
-        connection.onupgradeneeded = () => {
-            const database = connection.result
-            if (!database.objectStoreNames.contains('STORE')) {
-                database.createObjectStore('STORE')
-            }
-        }
-
-        return new Promise(resolve => {
-            connection.onsuccess = () => {
-                resolve(connection.result)
-            }
-        })
-    }
-
-    static async save(handle: FileSystemHandle) {
-        const idb = await this.connect()
-        const request = idb
-            .transaction(['STORE'], 'readwrite')
-            .objectStore('STORE')
-            .put(handle, 'LAST-DIR')
-
-        request.onerror = ev => {
-            console.error('idb error: ', ev)
-        }
-
-        request.onsuccess = () => {
-            console.log('saved.')
-        }
-    }
-
-    static async get(): Promise<FileSystemHandle | null> {
-        const database = await this.connect()
-        const request = database
-            .transaction(['STORE'], 'readonly')
-            .objectStore('STORE')
-            .get('LAST-DIR')
-
-        return new Promise(resolve => {
-            request.onerror = () => {
-                resolve(null)
-            }
-            request.onsuccess = () => {
-                resolve(request.result)
-            }
-        })
-    }
-}
-
 const history = computedAsync(async () => {
-    const value = await PersistenceHelper.get()
+    const value = await getHandle(lastHandleKey)
     console.log('history:', value)
     return value
 })
@@ -147,7 +96,7 @@ async function swRegisterHandle(handle: FileSystemHandle) {
     }
 
     if ((await handle.queryPermission()) === 'granted') {
-        await PersistenceHelper.save(handle)
+        await setHandle(lastHandleKey, handle)
         postMessage({ type: EventTypes.REGISTER, handle })
     } else {
         console.error('permission denied.')
@@ -167,28 +116,9 @@ function checkEnv() {
         logE('需要 HTTPS')
     }
 
-    // check Service Worker
-    ;(async () => {
-        const key = 'no-auto-refresh'
-
-        try {
-            const resp = await fetch('https://service.worker/check')
-            if (resp.status === 200 && resp.statusText === 'ACK') {
-                localStorage.removeItem(key)
-                return
-            }
-        } catch (err) {}
-
-        const refresh = !Boolean(localStorage.getItem(key))
-
-        if (refresh) {
-            localStorage.setItem(key, '1')
-            window.location.reload()
-            return
-        }
-
+    if (!navigator.serviceWorker.controller) {
         logE('Service Worker 不可用')
-    })()
+    }
 }
 
 onMounted(() => {
@@ -205,16 +135,9 @@ onMounted(() => {
     navigator.serviceWorker.onmessage = event => {
         let ev = event.data as WindowEvent
         switch (ev.type) {
-            case EventTypes.LOAD:
+            case EventTypes.REGISTERED:
                 if (!ev.error) {
-                    document.open()
-                    document.write(ev.content!)
-                    document.close()
-
-                    window.addEventListener('beforeunload', () => {
-                        console.log('beforeunload')
-                        postMessage({ type: EventTypes.UNREGISTER })
-                    })
+                    window.location.reload()
                 }
 
                 break
